@@ -11,18 +11,15 @@ import os, re
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+import profile
 
 BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
-BEN_OUT = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\out.xlsx"
 UNI_IN = r"E:\SA\Runs\Poly\tables"
-UNI_OUT =  r"E:\SA\Runs\Poly\tables\b_poly.xlsx"
-
 
 #############################################################
 # Change these variables to modify the input and output paths
 # (type the path using the format above if needed).
 current_input = BEN_IN
-current_output = BEN_OUT
 #############################################################
 
 ### DUPLICATE
@@ -75,108 +72,6 @@ def read_mask_csvs(path_to_dir):
     return pd.concat(csvs).set_index("x", drop=False)
 
 
-### DUPLICATE
-def identify_shore(profile_xy):
-    """Returns the x coordinate of the shoreline."""
-    x = profile_xy["x"]
-    y = profile_xy["y"]
-    slope = (y - y.shift(1)) / (x - x.shift(1))
-
-    filt = ((y > 0)
-            # Current y value is the largest so far
-            & (y > y.shift(1).expanding(min_periods=1).max())
-            # Current value and next 4 slope values are positive
-            & (slope.rolling(5).min().shift(-4) >= 0))
-
-    x_coord = filt.idxmax()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-### DUPLICATE
-def identify_crest(profile_xy, shore_x):
-    """Returns the x coordinate of the dune crest."""
-    y = profile_xy.loc[shore_x:]["y"]
-            # Current y value is the largest so far
-    filt = ((y > y.shift(1).expanding(min_periods=1).max())
-            # Difference between current y value and minimum of next 20 > 0.6
-            & (y - y.rolling(20).min().shift(-20) > 0.6)
-            # Current y value > next 10
-            & (y > y.rolling(10).max().shift(-10)))
-
-    x_coord = filt.idxmax()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-### DUPLICATE
-def identify_toe(profile_xy, shore_x, crest_x):
-    """Returns the x coordinate of the dune toe."""
-    subset = profile_xy.loc[shore_x:crest_x]
-    x = subset["x"]
-    y = subset["y"]
-
-    # Polynomial coefficients
-    A, B, C, D = np.polyfit(x=x, y=y, deg=3)
-    differences = y - ((A * x ** 3) + (B * x ** 2) + (C * x) + D)
-    x_coord = differences.idxmin()
-    return x_coord
-
-
-### DUPLICATE
-def identify_heel(profile_df, crest_x):
-    """Returns the x coordinate of the dune heel."""
-    subset = profile_df.loc[crest_x:]
-    y = subset["y"]
-             # Difference between current y value and minimum of next 10 > 0.6
-    filt = ~((y - y.rolling(10).min().shift(-10) > 0.6)
-             # Current y value > max of previous 10 y values
-             & (y > y.rolling(10).max())
-             & (y > y.rolling(20).max().shift(-20)))
-
-    x_coord = y[filt].idxmin()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-### DUPLICATE
-def identify_features(profile_xy):
-    """
-    Returns the coordinates of the shoreline, dune toe, dune crest, and
-    dune heel for a given profile as:
-    (shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y)
-    """
-    shore_x = identify_shore(profile_xy)
-    if shore_x is None:
-        print("\tNo shore for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    crest_x = identify_crest(profile_xy, shore_x)
-    if crest_x is None:
-        print("\tNo crest for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    toe_x = identify_toe(profile_xy, shore_x, crest_x)
-    if toe_x is None:
-        print("\tNo toe for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    heel_x = identify_heel(profile_xy, crest_x)
-    if heel_x is None:
-        print("\tNo heel for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    shore_y, toe_y, crest_y, heel_y = profile_xy.loc[[shore_x, toe_x, crest_x, heel_x], "y"]
-
-    return shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y
-
-
 ### identifier has to be [state, seg, prof]
 def plot_profile(profile_xy, identifier, points=[[], []]):
     """Plot a profile given its xy data"""
@@ -209,11 +104,9 @@ def plot_profile(profile_xy, identifier, points=[[], []]):
 
 ### ASSUMES DATA CAN BE GROUPED BY state, segment, profile
 ### ASSUMES identifier IS OF FORM [num1, num2, num3]
-def main(input_path, output_path):
+def main(input_path):
     print("\nReading .csvs...")
     xy_data = read_mask_csvs(input_path)
-    #print("Reading profiles...")
-    #profiles = read_profiles(output_path)
 
     help_msg = ("\nPlotting Data:"
         "\n- Enter the 3 number identifier of a profile, seperated by any"
@@ -238,7 +131,7 @@ def main(input_path, output_path):
             identifier = tuple([int(i) for i in re.findall(r"\d+", action)])
             if len(identifier) == 3:
                 if identifier in identifiers:
-                    feature_data = identify_features(grouped_xy.get_group(identifier))
+                    feature_data = profile.identify_features(grouped_xy.get_group(identifier))
                     features_x = feature_data[::2]
                     features_y = feature_data[1::2]
                     plot_profile(grouped_xy.get_group(identifier),
@@ -251,7 +144,7 @@ def main(input_path, output_path):
 
 
 if __name__ == "__main__":
-    main(current_input, current_output)
+    main(current_input)
 
 
 

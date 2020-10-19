@@ -17,6 +17,7 @@ import os, re, time
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+import profile
 
 
 BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
@@ -85,155 +86,6 @@ def read_mask_csvs(path_to_dir):
     return pd.concat(csvs).set_index("x", drop=False)
 
 
-def identify_shore(profile_xy):
-    """Returns the x coordinate of the shoreline."""
-    x = profile_xy["x"]
-    y = profile_xy["y"]
-    slope = (y - y.shift(1)) / (x - x.shift(1))
-
-    filt = ((y > 0)
-            # Current y value is the largest so far
-            & (y > y.shift(1).expanding(min_periods=1).max())
-            # Current value and next 4 slope values are positive
-            & (slope.rolling(5).min().shift(-4) >= 0))
-
-    x_coord = filt.idxmax()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-def identify_crest(profile_xy, shore_x):
-    """Returns the x coordinate of the dune crest."""
-    y = profile_xy.loc[shore_x:]["y"]
-            # Current y value is the largest so far
-    filt = ((y > y.shift(1).expanding(min_periods=1).max())
-            # Difference between current y value and minimum of next 20 > 0.6
-            & (y - y.rolling(20).min().shift(-20) > 0.6)
-            # Current y value > next 10
-            & (y > y.rolling(10).max().shift(-10)))
-
-    x_coord = filt.idxmax()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-### COMPARE TO NEW
-def identify_toe_old(profile_xy, shore_x, crest_x):
-    """Returns the x coordinate of the dune toe."""
-    subset = profile_xy.loc[shore_x:crest_x].iloc[1:-2]
-    x = subset["x"]
-    y = subset["y"]
-
-    # Polynomial coefficients
-    A, B, C, D = np.polyfit(x=x, y=y, deg=3)
-    differences = y - ((A * x ** 3) + (B * x ** 2) + (C * x) + D)
-    x_coord = differences.idxmin()
-    return x_coord
-
-
-def identify_toe(profile_xy, shore_x, crest_x):
-    """Returns the x coordinate of the dune toe."""
-    subset = profile_xy.loc[shore_x:crest_x]
-    x = subset["x"]
-    y = subset["y"]
-
-    # Polynomial coefficients
-    A, B, C, D = np.polyfit(x=x, y=y, deg=3)
-    differences = y - ((A * x ** 3) + (B * x ** 2) + (C * x) + D)
-    x_coord = differences.idxmin()
-    return x_coord
-
-
-def identify_heel(profile_df, crest_x):
-    """Returns the x coordinate of the dune heel."""
-    subset = profile_df.loc[crest_x:]
-    y = subset["y"]
-             # Difference between current y value and minimum of next 10 > 0.6
-    filt = ~((y - y.rolling(10).min().shift(-10) > 0.6)
-             # Current y value > max of previous 10 y values
-             & (y > y.rolling(10).max())
-             & (y > y.rolling(20).max().shift(-20)))
-
-    x_coord = y[filt].idxmin()
-    if x_coord == filt.index[0]:
-        return None
-    else:
-        return x_coord
-
-
-def grouped_mean(profiles, n):
-    """Returns a new DataFrame with the mean of every n rows for each column."""
-    return profiles.groupby(np.arange(len(profiles)) // n).mean()
-
-
-def identify_features(profile_xy):
-    """
-    Returns the coordinates of the shoreline, dune toe, dune crest, and
-    dune heel for a given profile as:
-    (shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y)
-    """
-    shore_x = identify_shore(profile_xy)
-    if shore_x is None:
-        print("\tNo shore for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    crest_x = identify_crest(profile_xy, shore_x)
-    if crest_x is None:
-        print("\tNo crest for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    toe_x = identify_toe(profile_xy, shore_x, crest_x)
-    if toe_x is None:
-        print("\tNo toe for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    heel_x = identify_heel(profile_xy, crest_x)
-    if heel_x is None:
-        print("\tNo heel for {}".format(tuple(profile_xy.iloc[0]["state":"profile"])))
-        return None
-
-    shore_y, toe_y, crest_y, heel_y = profile_xy.loc[[shore_x, toe_x, crest_x, heel_x], "y"]
-
-    return shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y
-
-
-def measure_volume(profile_xy, start_x, end_x, profile_spacing, base_elevation=0):
-    """
-    Returns an approximation of the volume of the beach between two points.
-
-    ARGUMENTS
-    profile_xy: DataFrame
-      xy data for a particular profile.
-    start_x: float
-      The x coordinate of the start of the range.
-    end_x: float
-      The x coordinate of the end of the range.
-    profile_spacing: float
-      The distance between consecutive profiles.
-    base_elevation: float
-      Set the height of the horizontal axis to measure volume from. Change this
-      if y values are relative to an elevation other than y=0.
-    """
-    subset = profile_xy.loc[start_x:end_x]
-    x = subset["x"]
-    y = subset["y"]
-
-    # Make all elevation values relative to the base elevation.
-    y -= base_elevation
-
-    # The area under the profile curve is calculated using the trapezoidal rule
-    # and multiplized by the distance between consecutive profiles to
-    # approximate the volume.
-    return np.trapz(y=y, x=x) * profile_spacing
-
-
-### MAKE THIS A HIGHER LEVEL / MULTIPLE PROFILES MODULE FUNCTION AND LEAVE
-### measure_volume AS A SINGLE PROFILE FUNCTION
-
 ###ASSUMES THAT DATA CAN BE GROUPED BY state, segment, profile.
 ###RENAME.
 def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
@@ -243,7 +95,7 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
 
     ARGUMENTS
     xy_data: DataFrame
-      xy data of a collection of profiles.
+      xy data of a collection of profile_data.
     start_values: iterable
       Sequence; the x value to start measuring volume from for each profile.
     end_values: iterable
@@ -251,8 +103,8 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
     base_elevations: iterable
       The base elevation for each profile.
     """
-    # The distance between consecutive profiles. Uses the distance between the
-    # first two consecutive x values, which assumes the profiles were taken from
+    # The distance between consecutive profile_data. Uses the distance between the
+    # first two consecutive x values, which assumes the profile_data were taken from
     # a square grid.
     profile_spacing = xy_data["x"].iat[1] - xy_data["x"].iat[0]
 
@@ -261,7 +113,7 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
     # Measure the volume for each profile between the corresponding start and
     # end x value in start_values and end_values.
     for (index, profile_xy), start_x, end_x, base_y in zip(grouped_xy, start_values, end_values, base_elevations):
-        data.append(measure_volume(profile_xy, start_x, end_x, profile_spacing, base_y))
+        data.append(profile.measure_volume(profile_xy, start_x, end_x, profile_spacing, base_y))
 
     return data
 
@@ -284,7 +136,6 @@ def write_data_excel(path_to_file, dataframes, names):
             except IndexError:
                 print("\tFailed to write {} to file (the DataFrame may be"
                       " empty).".format(name))
-
 
 
 ### HAVE THE USER DECLARE HOW THEIR DATA IS CATEGORIZED / ORGANIZED
@@ -310,11 +161,11 @@ def main(input_path, output_path):
     # Identify the shoreline, dune toe, dune crest, and dune heel for each
     # profile in the data. This data will be returned as a Pandas Series
     # containing tuples of the 4 pairs of coordinates for each profile.
-    profiles = xy_data.groupby(["state", "segment", "profile"]).apply(identify_features)
+    profile_data = xy_data.groupby(["state", "segment", "profile"]).apply(profile.identify_features)
 
     # Expand the Series of tuples into a DataFrame where each column contains an
     # x or y componenent of a feature.
-    profiles = pd.DataFrame(profiles.to_list(), columns=FEATURE_COLUMNS, index=profiles.index)
+    profile_data = pd.DataFrame(profile_data.to_list(), columns=FEATURE_COLUMNS, index=profile_data.index)
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
 
 
@@ -326,16 +177,16 @@ def main(input_path, output_path):
     # dune toe height, dune crest height, dune length, beach slope, dune slope,
     # beach volume, dune volume, and beach-dune volume ratio.
     beach_data = pd.DataFrame(
-        data={"dune_height" : profiles["crest_y"] - profiles["toe_y"],
-              "beach_width" : profiles["toe_x"] - profiles["shore_x"],
-              "dune_toe" : profiles["toe_y"],
-              "dune_crest" : profiles["crest_y"],
-              "dune_length" : profiles["crest_x"] - profiles["toe_x"]},
-        index=profiles.index)
+        data={"dune_height" : profile_data["crest_y"] - profile_data["toe_y"],
+              "beach_width" : profile_data["toe_x"] - profile_data["shore_x"],
+              "dune_toe" : profile_data["toe_y"],
+              "dune_crest" : profile_data["crest_y"],
+              "dune_length" : profile_data["crest_x"] - profile_data["toe_x"]},
+        index=profile_data.index)
 
     # Approximates the beach slope as the total change in height of the beach
     # divided by the length of the beach.
-    beach_data["beach_slope"] = (profiles["toe_y"] - profiles["shore_y"]) / beach_data["beach_width"]
+    beach_data["beach_slope"] = (profile_data["toe_y"] - profile_data["shore_y"]) / beach_data["beach_width"]
 
     # Approximates the dune slope as the change in height of the dune divided by
     # the length of the dune.
@@ -343,15 +194,15 @@ def main(input_path, output_path):
 
     beach_data["beach_vol"] = measure_feature_volumes(
                                   xy_data,
-                                  start_values=profiles["shore_x"],
-                                  end_values=profiles["toe_x"],
-                                  base_elevations=profiles["shore_y"])
+                                  start_values=profile_data["shore_x"],
+                                  end_values=profile_data["toe_x"],
+                                  base_elevations=profile_data["shore_y"])
     ### ARE ELEVATIONS RELATIVE TO TOE Y OR SHORE Y?
     beach_data["dune_vol"] = measure_feature_volumes(
                                  xy_data,
-                                 start_values=profiles["toe_x"],
-                                 end_values=profiles["crest_x"],
-                                 base_elevations=profiles["toe_y"])
+                                 start_values=profile_data["toe_x"],
+                                 end_values=profile_data["crest_x"],
+                                 base_elevations=profile_data["toe_y"])
     ### SHOULD THIS BE db_ratio?
     beach_data["bd_ratio"] = beach_data["dune_vol"] / beach_data["beach_vol"]
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
@@ -372,15 +223,15 @@ def main(input_path, output_path):
         & (beach_data["beach_width"] > 10)
         & (beach_data["beach_width"] < 60)].dropna()
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
-    print("\tThere are {} profiles remaining after filtering out {} rows of"
+    print("\tThere are {} profile_data remaining after filtering out {} rows of"
           " data.".format(len(filtered_beach_data), len(beach_data) - len(filtered_beach_data)))
 
 
     print("\nAveraging data...")
     start_time = time.perf_counter()
 
-    # Takes the mean of each column for every 10 profiles.
-    averaged_beach_data = beach_data.groupby(["state", "segment"]).apply(grouped_mean, 10)
+    # Takes the mean of each column for every 10 profile_data.
+    averaged_beach_data = beach_data.groupby(["state", "segment"]).apply(profile.grouped_mean, 10)
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
 
 
@@ -394,18 +245,18 @@ def main(input_path, output_path):
     print("\nWriting to file...")
     start_time = time.perf_counter()
     write_data_excel(path_to_file=output_path,
-                     dataframes=(profiles, beach_data, corr1, filtered_beach_data,
+                     dataframes=(profile_data, beach_data, corr1, filtered_beach_data,
                                  corr2, averaged_beach_data),
-                     names=("profiles", "unfiltered", "corr_1", "filtered",
+                     names=("profile_data", "unfiltered", "corr_1", "filtered",
                             "corr_2", "averages"))
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
 
     print("\nTotal time: {:.2f} seconds".format(time.perf_counter() - initial_start_time))
 
-    #return xy_data, profiles, beach_data, filtered_beach_data, averaged_beach_data
+    #return xy_data, profile_data, beach_data, filtered_beach_data, averaged_beach_data
 
 
 if __name__ == "__main__":
-    #xy_data, profiles, beach_data, filtered_beach_data, avg = main(current_input, current_output)
+    #xy_data, profile_data, beach_data, filtered_beach_data, avg = main(current_input, current_output)
     main(current_input, current_output)
 

@@ -1,3 +1,5 @@
 
 BeachDuneFormatter.~py
 *.~py
+__pycache__/profile.cpython-37.pyc
+out.xlsx

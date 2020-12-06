@@ -17,7 +17,7 @@ import os, re, time
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-import profile
+import profiletools
 
 
 BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
@@ -103,8 +103,8 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
     base_elevations: iterable
       The base elevation for each profile.
     """
-    # The distance between consecutive profile_data. Uses the distance between the
-    # first two consecutive x values, which assumes the profile_data were taken from
+    # The distance between consecutive profiles. Uses the distance between the
+    # first two consecutive x values, which assumes the profiles were taken from
     # a square grid.
     profile_spacing = xy_data["x"].iat[1] - xy_data["x"].iat[0]
 

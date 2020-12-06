@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 
 def identify_shore(profile_xy):
-    """Returns the x coordinate of the shoreline."""
+    """Returns the x coordinate of the shoreline or None if not found."""
     x = profile_xy["x"]
     y = profile_xy["y"]
     slope = (y - y.shift(1)) / (x - x.shift(1))
@@ -29,7 +29,7 @@ def identify_shore(profile_xy):
 
 
 def identify_crest(profile_xy, shore_x):
-    """Returns the x coordinate of the dune crest."""
+    """Returns the x coordinate of the dune crest or None if not found."""
     y = profile_xy.loc[shore_x:]["y"]
             # Current y value is the largest so far
     filt = ((y > y.shift(1).expanding(min_periods=1).max())
@@ -45,6 +45,7 @@ def identify_crest(profile_xy, shore_x):
         return x_coord
 
 
+########################
 ### COMPARE TO NEW
 def identify_toe_old(profile_xy, shore_x, crest_x):
     """Returns the x coordinate of the dune toe."""
@@ -70,10 +71,11 @@ def identify_toe(profile_xy, shore_x, crest_x):
     differences = y - ((A * x ** 3) + (B * x ** 2) + (C * x) + D)
     x_coord = differences.idxmin()
     return x_coord
+#################################
 
 
 def identify_heel(profile_df, crest_x):
-    """Returns the x coordinate of the dune heel."""
+    """Returns the x coordinate of the dune heel or None if not found."""
     subset = profile_df.loc[crest_x:]
     y = subset["y"]
              # Difference between current y value and minimum of next 10 > 0.6
@@ -146,6 +148,6 @@ def measure_volume(profile_xy, start_x, end_x, profile_spacing, base_elevation=0
     y -= base_elevation
 
     # The area under the profile curve is calculated using the trapezoidal rule
-    # and multiplized by the distance between consecutive profiles to
+    # and multiplied by the distance between consecutive profiles to
     # approximate the volume.
     return np.trapz(y=y, x=x) * profile_spacing

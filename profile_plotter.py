@@ -11,7 +11,7 @@ import os, re
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-import profile
+import profiletools
 
 BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
 UNI_IN = r"E:\SA\Runs\Poly\tables"
@@ -108,6 +108,8 @@ def main(input_path):
     print("\nReading .csvs...")
     xy_data = read_mask_csvs(input_path)
 
+    QUIT_OPTIONS = frozenset(("q", "quit"))
+
     help_msg = ("\nPlotting Data:"
         "\n- Enter the 3 number identifier of a profile, seperated by any"
         " characters, to prepare a plot (i.e. '29 18 0')"
@@ -123,7 +125,7 @@ def main(input_path):
         if action == "plot":
             print("Plotting data")
             plt.show()
-        elif action in ("q", "quit"):
+        elif action in QUIT_OPTIONS:
             break
         elif action == "help":
             print(help_msg)
@@ -131,7 +133,7 @@ def main(input_path):
             identifier = tuple([int(i) for i in re.findall(r"\d+", action)])
             if len(identifier) == 3:
                 if identifier in identifiers:
-                    feature_data = profile.identify_features(grouped_xy.get_group(identifier))
+                    feature_data = profiletools.identify_features(grouped_xy.get_group(identifier))
                     features_x = feature_data[::2]
                     features_y = feature_data[1::2]
                     plot_profile(grouped_xy.get_group(identifier),

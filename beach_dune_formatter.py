@@ -16,7 +16,6 @@
 import os, re, time
 import pandas as pd
 import numpy as np
-from matplotlib import pyplot as plt
 import profiletools
 
 
@@ -39,18 +38,24 @@ def read_mask_csvs(path_to_dir):
     Reads all .csv files in the given directory and concatenates them into a
     single DataFrame. Each .csv file name should end with a number specifying
     the segment its data corresponds to (i.e. 'data_file19.csv' would be
-    interpreted to contain data for segment 19).
+    interpreted to contain data for segment 19). Returns a DataFrame with the
+    following columns: "state", "segment", "profile", "x", "y".
     """
     # Default value since all testing data is from one state.
     STATE = np.uint8(29)
+
+    # For mapping the input column names to the desired output column names.
     INPUT_COLUMNS = ["LINE_ID", "FIRST_DIST", "FIRST_Z"]
     OUTPUT_COLUMNS = ["profile", "x", "y"]
+
+    # Data types corresponding to each input column.
     DTYPES = dict(zip(INPUT_COLUMNS, [np.uint16, np.float32, np.float32]))
 
     if not path_to_dir.endswith("\\"):
         path_to_dir += "\\"
 
-    # Read each .csv file into a DataFrame and append the DataFrame to a list.
+    # Read each .csv file at the provided path into a DataFrame and append it to
+    # a list.
     csvs = []
     for file_name in os.listdir(path_to_dir):
         head, extension = os.path.splitext(file_name)
@@ -62,13 +67,13 @@ def read_mask_csvs(path_to_dir):
             if segment is not None:
                 segment = np.int16(segment.group())
 
-                # Read only the necessary columns and reorder them in the
+                # Read only the desired columns and reorder them in the
                 # DataFrame.
                 csv_data = pd.read_csv(path_to_dir + file_name,
                                        usecols=INPUT_COLUMNS,
                                        dtype=DTYPES)[INPUT_COLUMNS]
                 csv_data.rename(columns=dict(zip(INPUT_COLUMNS, OUTPUT_COLUMNS)),
-                           inplace=True)
+                                inplace=True)
                 # Insert a column for the segment and state values.
                 csv_data.insert(loc=0, column="state", value=STATE)
                 csv_data.insert(loc=1, column="segment", value=segment)
@@ -95,7 +100,7 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
 
     ARGUMENTS
     xy_data: DataFrame
-      xy data of a collection of profile_data.
+      xy data of a collection of profiles.
     start_values: iterable
       Sequence; the x value to start measuring volume from for each profile.
     end_values: iterable
@@ -113,7 +118,7 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
     # Measure the volume for each profile between the corresponding start and
     # end x value in start_values and end_values.
     for (index, profile_xy), start_x, end_x, base_y in zip(grouped_xy, start_values, end_values, base_elevations):
-        data.append(profile.measure_volume(profile_xy, start_x, end_x, profile_spacing, base_y))
+        data.append(profiletools.measure_volume(profile_xy, start_x, end_x, profile_spacing, base_y))
 
     return data
 
@@ -161,7 +166,7 @@ def main(input_path, output_path):
     # Identify the shoreline, dune toe, dune crest, and dune heel for each
     # profile in the data. This data will be returned as a Pandas Series
     # containing tuples of the 4 pairs of coordinates for each profile.
-    profile_data = xy_data.groupby(["state", "segment", "profile"]).apply(profile.identify_features)
+    profile_data = xy_data.groupby(["state", "segment", "profile"]).apply(profiletools.identify_features)
 
     # Expand the Series of tuples into a DataFrame where each column contains an
     # x or y componenent of a feature.
@@ -223,15 +228,15 @@ def main(input_path, output_path):
         & (beach_data["beach_width"] > 10)
         & (beach_data["beach_width"] < 60)].dropna()
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
-    print("\tThere are {} profile_data remaining after filtering out {} rows of"
+    print("\tThere are {} profiles remaining after filtering out {} rows of"
           " data.".format(len(filtered_beach_data), len(beach_data) - len(filtered_beach_data)))
 
 
     print("\nAveraging data...")
     start_time = time.perf_counter()
 
-    # Takes the mean of each column for every 10 profile_data.
-    averaged_beach_data = beach_data.groupby(["state", "segment"]).apply(profile.grouped_mean, 10)
+    # Takes the mean of each column for every 10 profiles.
+    averaged_beach_data = beach_data.groupby(["state", "segment"]).apply(profiletools.grouped_mean, 10)
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
 
 

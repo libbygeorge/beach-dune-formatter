@@ -101,7 +101,8 @@ def identify_features(profile_xy):
     Returns the coordinates of the shoreline, dune toe, dune crest, and
     dune heel for a given profile as:
     (shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y)
-    """
+    """ 
+    profile_xy = profile_xy.set_index("x", drop=False)
     shore_x = identify_shore(profile_xy)
     if shore_x is None:
         return None
@@ -140,7 +141,7 @@ def measure_volume(profile_xy, start_x, end_x, profile_spacing, base_elevation=0
       Set the height of the horizontal axis to measure volume from. Change this
       if y values are relative to an elevation other than y=0.
     """
-    subset = profile_xy.loc[start_x:end_x]
+    subset = profile_xy.set_index("x", drop=False).loc[start_x:end_x]
     x = subset["x"]
     y = subset["y"]
 

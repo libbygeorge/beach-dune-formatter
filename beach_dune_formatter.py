@@ -19,8 +19,8 @@ import numpy as np
 import profiletools
 
 
-BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
-BEN_OUT = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\out.xlsx"
+BEN_IN = r"C:\Users\Ben2020\Documents\GitHub\beach-dune-formatter\sample_data"
+BEN_OUT = r"C:\Users\Ben2020\Documents\GitHub\beach-dune-formatter\out.xlsx"
 UNI_IN = r"E:\SA\Runs\Poly\tables"
 UNI_OUT =  r"E:\SA\Runs\Poly\tables\b_poly.xlsx"
 
@@ -88,7 +88,7 @@ def read_mask_csvs(path_to_dir):
 
     # Combine the .csvs into a single DataFrame and set the index to the x
     # values column.
-    return pd.concat(csvs).set_index("x", drop=False)
+    return pd.concat(csvs)
 
 
 ###ASSUMES THAT DATA CAN BE GROUPED BY state, segment, profile.
@@ -139,14 +139,14 @@ def write_data_excel(path_to_file, dataframes, names):
             try:
                 data.to_excel(writer, name)
             except IndexError:
-                print("\tFailed to write {} to file (the DataFrame may be"
+                print("\tFailed to write '{}' to file (the DataFrame may be"
                       " empty).".format(name))
 
 
 ### HAVE THE USER DECLARE HOW THEIR DATA IS CATEGORIZED / ORGANIZED
 ### (need to know for groupby operations)
 def main(input_path, output_path):
-    FEATURE_COLUMNS = ["shore_x",  "shore_y", "toe_x", "toe_y", "crest_x",
+    FEATURE_COLUMNS = ["shore_x", "shore_y", "toe_x", "toe_y", "crest_x",
                        "crest_y", "heel_x", "heel_y"]
 
     pd.options.display.max_columns = 12
@@ -157,6 +157,7 @@ def main(input_path, output_path):
     print("\nReading .csv's...")
     start_time = time.perf_counter()
     xy_data = read_mask_csvs(input_path)
+
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
 
 
@@ -172,7 +173,6 @@ def main(input_path, output_path):
     # x or y componenent of a feature.
     profile_data = pd.DataFrame(profile_data.to_list(), columns=FEATURE_COLUMNS, index=profile_data.index)
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
-
 
     print("\nCalculating beach data...")
     start_time = time.perf_counter()
@@ -258,10 +258,10 @@ def main(input_path, output_path):
 
     print("\nTotal time: {:.2f} seconds".format(time.perf_counter() - initial_start_time))
 
-    #return xy_data, profile_data, beach_data, filtered_beach_data, averaged_beach_data
+    return xy_data, profile_data, beach_data, filtered_beach_data, averaged_beach_data
 
 
 if __name__ == "__main__":
-    #xy_data, profile_data, beach_data, filtered_beach_data, avg = main(current_input, current_output)
-    main(current_input, current_output)
+    xy_data, profile_data, beach_data, filtered_beach_data, avg = main(current_input, current_output)
+    #main(current_input, current_output)
 

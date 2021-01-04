@@ -13,7 +13,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import profiletools
 
-BEN_IN = r"C:\Users\BenPc\Documents\GitHub\beach-dune-formatter\sample_data"
+BEN_IN = r"C:\Users\Ben2020\Documents\GitHub\beach-dune-formatter\sample_data"
 UNI_IN = r"E:\SA\Runs\Poly\tables"
 
 #############################################################

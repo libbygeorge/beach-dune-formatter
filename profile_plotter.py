@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 # Name:        profile_plotter.py
-# Version:     Python 3.7, Pandas 0.24
+# Version:     Python 3.9, pandas 1.2.0, numpy 1.19.3, matplotlib 3.3.3
 #
 # Purpose:     Plot profiles xy profile data.
 #

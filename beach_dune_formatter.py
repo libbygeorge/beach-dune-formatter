@@ -41,7 +41,7 @@ def read_mask_csvs(path_to_dir):
     interpreted to contain data for segment 19). Returns a DataFrame with the
     following columns: "state", "segment", "profile", "x", "y".
     """
-    # Default value since all testing data is from one state.
+    ### Default value since all testing data is from one state.
     STATE = np.uint8(29)
 
     # For mapping the input column names to the desired output column names.
@@ -102,11 +102,13 @@ def measure_feature_volumes(xy_data, start_values, end_values, base_elevations):
     xy_data: DataFrame
       xy data of a collection of profiles.
     start_values: iterable
-      Sequence; the x value to start measuring volume from for each profile.
+      The x value to start measuring volume from (a value must be provided 
+      for each profile).
     end_values: iterable
-      Sequence; the x value to stop measuring volume from for each profile.
+      The x value to stop measuring volume from (a value must be provided 
+      for each profile).
     base_elevations: iterable
-      The base elevation for each profile.
+      The elevation to use as zero (a value must be provided for each profile.)
     """
     # The distance between consecutive profiles. Uses the distance between the
     # first two consecutive x values, which assumes the profiles were taken from
@@ -216,20 +218,17 @@ def main(input_path, output_path):
     print("\nFiltering data...")
     start_time = time.perf_counter()
 
-    ### SHOULD THE ENTIRE ROW OF DATA BE WIPED OUT IF ONLY ONE FEATURE IS UNFIT?
-    filtered_beach_data = beach_data[
-          (beach_data["dune_vol"] < 300) ##
-        & (beach_data["beach_vol"] < 500) ##
-        & (beach_data["dune_height"] > 1)
-        & (beach_data["dune_height"] < 10)
-        & (beach_data["dune_length"] > 5)
-        & (beach_data["dune_length"] < 25)
-        & (beach_data["dune_crest"] < 20)
-        & (beach_data["beach_width"] > 10)
-        & (beach_data["beach_width"] < 60)].dropna()
+    # Replace values outside of the desired bounds with NaNs.
+    filtered_beach_data = beach_data.copy()
+    filtered_beach_data.loc[beach_data["dune_vol"] >= 300, "dune_vol"] = np.nan
+    filtered_beach_data.loc[beach_data["beach_vol"] >= 500, "beach_vol"] = np.nan
+    filtered_beach_data.loc[(beach_data["dune_height"] > 1) & (beach_data["dune_height"] < 10), "dune_height"] = np.nan
+    filtered_beach_data.loc[(beach_data["dune_length"] > 5) & (beach_data["dune_length"] < 25), "dune_length"] = np.nan
+    filtered_beach_data.loc[beach_data["dune_crest"] < 20, "dune_crest"] = np.nan
+    filtered_beach_data.loc[(beach_data["beach_width"] > 10) & (beach_data["beach_width"] < 60), "beach_width"] = np.nan
+    filtered_beach_data.loc[beach_data["dune_toe"] > 2 * beach_data["dune_toe"].rolling(10)]
+ 
     print("\tTook {:.2f} seconds".format(time.perf_counter() - start_time))
-    print("\tThere are {} profiles remaining after filtering out {} rows of"
-          " data.".format(len(filtered_beach_data), len(beach_data) - len(filtered_beach_data)))
 
 
     print("\nAveraging data...")

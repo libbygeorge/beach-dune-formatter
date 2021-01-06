@@ -47,6 +47,7 @@ def identify_crest(profile_xy, shore_x):
 
 ########################
 ### COMPARE TO NEW
+'''
 def identify_toe_old(profile_xy, shore_x, crest_x):
     """Returns the x coordinate of the dune toe."""
     subset = profile_xy.loc[shore_x:crest_x].iloc[1:-2]
@@ -58,7 +59,7 @@ def identify_toe_old(profile_xy, shore_x, crest_x):
     differences = y - ((A * x ** 3) + (B * x ** 2) + (C * x) + D)
     x_coord = differences.idxmin()
     return x_coord
-
+'''
 
 def identify_toe(profile_xy, shore_x, crest_x):
     """Returns the x coordinate of the dune toe."""
@@ -95,6 +96,49 @@ def grouped_mean(profiles, n):
     """Returns a new DataFrame with the mean of every n rows for each column."""
     return profiles.groupby(np.arange(len(profiles)) // n).mean()
 
+### Measuring crest without shore or measuring heel without crest means that 
+### we have to use the entire profile... Without the a way to limit the range,
+### the profiles lacking 1 or more features may be identified more sporadically
+### / inconsistently compared to those that have all the features... How to
+### compare?
+'''
+def identify_features_without_omitting(profile_xy):
+    """
+    Returns the coordinates of the shoreline, dune toe, dune crest, and
+    dune heel for a given profile as:
+    (shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y)
+    """ 
+    profile_xy = profile_xy.set_index("x", drop=False)
+    shore_x = identify_shore(profile_xy)
+    if shore_x is None:
+        x1 = profile_xy["x"].iat[0]
+        shore_y = None
+    else:
+        x1 = shore_x
+        shore_y = profile_xy.at[shore_x, "y"]
+        
+    crest_x = identify_crest(profile_xy, x1)
+    if crest_x is None:
+        crest_y = None
+        x2 = profile_xy["x"].iat[-1]
+    else:
+        crest_y = profile_xy.at[crest_x, "y"]
+        x2 = crest_x
+
+    toe_x = identify_toe(profile_xy, x1, x2)
+    if toe_x is None:
+        toe_y = None
+    else:
+        toe_y = profile_xy.at[toe_x, "y"]
+
+    heel_x = identify_heel(profile_xy, x2)
+    if heel_x is None:
+        heel_y = None
+    else:
+        heel_y = profile_xy.at[heel_x, "y"]
+
+    return shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y
+'''
 
 def identify_features(profile_xy):
     """
@@ -152,3 +196,24 @@ def measure_volume(profile_xy, start_x, end_x, profile_spacing, base_elevation=0
     # and multiplied by the distance between consecutive profiles to
     # approximate the volume.
     return np.trapz(y=y, x=x) * profile_spacing
+
+### TESTING REQUIRED
+def std_mean_filter(series, std_factor, n):
+    """
+    For filtering outliers. Returns a truth series for whether the last n 
+    and next n elements are less than or equal to std_factor of standard 
+    deviations from the mean.
+
+    ARGUMENTS
+    series: Pandas Series
+    std_factor: int or float
+        Number of standard deviations to be considered an outlier.
+    n: int
+        Number of elements to be considered before and after each element.
+    """
+    lastn = series.shift(1).rolling(n)
+    nextn = lastn.shift(1 - n)
+
+    return ((abs(lastn.mean() - series) <= std_factor * lastn.std()) 
+          & (abs(nextn.mean() - series) <= std_factor * nextn.std()))
+

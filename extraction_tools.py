@@ -456,3 +456,152 @@ def identify_features_poly(profile_xy):
     shore_y, toe_y, crest_y, heel_y = profile_xy.loc[[shore_x, toe_x, crest_x, heel_x], "y"]
     
     return shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y
+
+####################################################################################
+## The following functions are from BeachDuneFormatter0.1.3_LCP_ElevVolume ##
+####################################################################################
+
+def identify_shore_LCP(profile_df):
+            """Returns the shore coordinates for the given profile."""
+            # Distance values
+            x = profile_df["x"]
+            # Elevation values
+            y = profile_df["y"]
+            # Slope values
+            m = (y.shift(1) - y) / (x.shift(1) - x)
+            # Creates a new DataFrame by filtering the subset by certain
+            # conditions.
+            df = profile_df[
+                (y > 0.75) # Current elevation is above 2.1m
+                &(y < 0.9)
+                &(m.rolling(5).min().shift(-5) >= 0)
+##                & (y > y.shift(1).expanding(min_periods=1).max()) # Current elevation is highest so far
+##                & (m.rolling(10).min().shift(-9) >= 0) # Positive slope (current and next 4 values)
+                ]
+            return (df["x"].iat[0], df["y"].iat[0]) if len(df) > 0 else (numpy.nan, numpy.nan)
+
+        def identify_toe_LCP(profile_df, shore_x, crest_x):
+            """Returns the dune toe coordinates for the given profile."""
+            # If no crest was found, returns NaN values.
+            if crest_x is numpy.nan:
+                return (numpy.nan, numpy.nan)
+            # Create a subset of the profile's data from the identified shore
+            # to the identified crest. The dune toe can only be found within
+            # this subset.
+            subset = profile_df.loc[shore_x:crest_x].iloc[1:-1]
+            # Distance values
+            x = subset["x"]
+            # Elevation values
+            y = subset["y"]
+            # Creates coefficients for the cubic polynomial (like LINEST in
+            # Excel).
+            xcoords= [shore_x, crest_x]
+            ycoords= [min(y), max(y)]
+
+            A, B = numpy.polyfit(
+                x = (xcoords),
+                y = (ycoords),
+                deg = 1
+                )
+            # Creates a new column in thc profile's DataFrame containing the
+            # difference of the cubic from the elevation for each row.
+##            (not sure about the acccuracy of this explanation...)
+            subset = subset.assign(
+                diff=subset["y"] - ((A * subset.index) + B)
+                )
+##            Difference of the cubic from the elevation values
+            diff = subset["diff"]
+            # Creates a new DataFrame by filtering the subset by certain
+            # conditions.
+            df = subset[
+                (crest_x - x > 2)
+                &(x-shore_x > 5)# Toe must be at least 2 meters away from the crest
+                ]
+            # Identifies the x value at the minimum cubic-elevation difference
+            # value. (This part is different compared to the other functions;
+            # however, additional conditions can still be added in the same
+            # way.)
+            toe_x = df["diff"].idxmin()
+            # Determines the y coordinate to return by finding the corresponding
+            # y value at the identified toe x coordinate.
+            return (toe_x, subset.at[toe_x, "y"])
+
+        def identify_crest_LCP(profile_df, shore_x):
+            """Returns the dune crest coordinates for the given profile."""
+            # If no shore was found, returns NaN values.
+            if shore_x is numpy.nan:
+                return (numpy.nan, numpy.nan)
+            # Create a subset of the profile's data from the identified shore
+            # onward. The dune crest can only be found within this subset.
+            subset = profile_df.loc[shore_x:].iloc[1:]
+            # Distance values
+##          x = subset["x"]
+            # Elevation values
+            y = subset["y"]
+            # Creates a new DataFrame by filtering the subset by certain
+            # conditions.
+            df = subset[
+                (y > y.shift(1).expanding(min_periods=1).max()) # Current elevation is the largest so far
+                & (y - y.rolling(20).min().shift(-20) > 0.6) # There is an elevation change of at least 0.6 in the next 20 values
+                & (y > y.rolling(10).max().shift(-10)) # Current y value > next 20
+                ]
+            return (df["x"].iat[0], df["y"].iat[0]) if len(df) > 0 else (numpy.nan, numpy.nan)
+
+        def identify_heel_LCP(profile_df, crest_x):
+            """Returns the dune heel coordinates for the given profile."""
+            # If no crest was found, returns NaN values.
+            if crest_x is numpy.nan:
+                return (numpy.nan, numpy.nan)
+            # Create a subset of the profile's data from the identified crest
+            # onward. The dune heel can only be found within this subset.
+            subset = profile_df.loc[crest_x:].iloc[1:]
+            # Distance values
+##          x = subset["x"]
+            # Elevation values
+            y = subset["y"]
+            # Creates a new DataFrame by filtering the subset by certain
+            # conditions.
+            # NOTE: the "~" symbol inverses the filter, meaning that the
+            #       conditions provided determine values to be excluded, rather
+            #       than values to be included as seem in the previous
+            #       functions.
+            df = subset[~(
+                (y - y.rolling(10).min().shift(-10) > 0.6) # There is an elevation change of at least 0.6 in the next 10 values
+                & (y > y.rolling(10).max()) # Current elevation is greater than previous 10
+                & (y > y.rolling(10).max().shift(-10)) # Current elevation is greater than next 20
+                )]
+            # Returns the set of coordinates with the lowest y value in the
+            # filtered data.
+            return (df["y"].idxmin(), df["y"].min()) if len(df) > 0 else (numpy.nan, numpy.nan)
+        
+        def identify_features_LCP(profile_xy):
+    """
+    Returns the coordinates of the shoreline, dune toe, dune crest, and
+    dune heel for a given profile as:
+    (shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y)
+    """
+    # Make sure the DataFrame uses the x values as the index. This makes it
+    # easy to look up y values corresponding to a given x.
+    profile_xy = profile_xy.set_index("x", drop=False)
+
+    # Identify the shore x coordinate if it exists.
+    shore_x = identify_shore_LCP(profile_xy)
+    if shore_x is None:
+        return None
+    # Identify the crest x coordinate if it exists.
+    crest_x = identify_crest_LCP(profile_xy, shore_x)
+    if crest_x is None:
+        return None
+    # Identify the toe x coordinate if it exists.
+    toe_x = identify_toe_LCP(profile_xy, shore_x, crest_x)
+    if toe_x is None:
+        return None
+    # Identify the heel x coordinate if it exists.
+    heel_x = identify_heel_LCP(profile_xy, crest_x)
+    if heel_x is None:
+        return None
+    
+     # Retrieve the y values for the above features.
+    shore_y, toe_y, crest_y, heel_y = profile_xy.loc[[shore_x, toe_x, crest_x, heel_x], "y"]
+    
+    return shore_x, shore_y, toe_x, toe_y, crest_x, crest_y, heel_x, heel_y
